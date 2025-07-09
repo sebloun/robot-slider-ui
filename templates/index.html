@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>6DOF Robot Arm Control</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
         :root {
             --joint1-color: #FF5733;
@@ -34,7 +35,7 @@
         .robot-arm {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
         }
 
         .joint-container {
@@ -42,18 +43,13 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
-        }
-
-        .joint-container:hover {
-            transform: translateY(-3px);
         }
 
         .joint-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .joint-name {
@@ -70,7 +66,7 @@
             font-family: 'Courier New', monospace;
             font-weight: bold;
             font-size: 1.1em;
-            width: 60px;
+            min-width: 60px;
             text-align: center;
         }
 
@@ -82,42 +78,51 @@
             color: var(--current-pos-color);
         }
 
-        .slider-container {
-            position: relative;
-            height: 40px;
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
             margin: 15px 0;
         }
 
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .slider-label {
+            font-size: 0.85em;
+            color: #555;
+            margin-bottom: 3px;
+        }
+
         .slider {
-            position: absolute;
             width: 100%;
             height: 15px;
             border-radius: 8px;
-            background: transparent;
             outline: none;
             -webkit-appearance: none;
-            pointer-events: none;
         }
 
-        /* Target slider (user controllable) */
+        /* Target slider styling */
         #joint1-target,
         #joint2-target,
         #joint3-target,
         #joint4-target,
         #joint5-target,
         #joint6-target {
-            pointer-events: auto;
-            z-index: 2;
+            background: #e0e0e0;
         }
 
-        /* Current position indicator (non-interactive) */
+        /* Current position slider styling */
         #joint1-current,
         #joint2-current,
         #joint3-current,
         #joint4-current,
         #joint5-current,
         #joint6-current {
-            z-index: 1;
+            background: #f0f0f0;
         }
 
         /* Joint-specific slider thumb colors */
@@ -154,29 +159,17 @@
         #joint6-current::-webkit-slider-thumb {
             background: var(--current-pos-color);
             border: 2px solid white;
-            box-shadow: 0 0 0 1px var(--current-pos-color);
         }
 
         .slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider-track {
-            position: absolute;
-            width: 100%;
-            height: 6px;
-            background: #e0e0e0;
-            border-radius: 3px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
         .limits {
@@ -193,6 +186,8 @@
             background-color: white;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
         }
 
         button {
@@ -203,8 +198,8 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 1em;
-            margin-right: 10px;
             transition: background-color 0.3s;
+            flex: 1;
         }
 
         button:hover {
@@ -215,22 +210,79 @@
             margin-top: 15px;
             padding: 10px;
             border-radius: 5px;
-            display: none;
         }
 
         .success {
             background-color: #d4edda;
             color: #155724;
+            display: block;
         }
 
         .error {
             background-color: #f8d7da;
             color: #721c24;
+            display: block;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .duration-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 15px;
+        }
+
+        .duration-control label {
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        .duration-control input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .control-panel {
+            display: flex;
+            align-items: center;
+            margin-top: 30px;
+            padding: 15px 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            gap: 10px;
         }
     </style>
 </head>
 
 <body>
+    <div id="connection-status" class="connection-status disconnected">Disconnected</div>
+
     <h1>6DOF Robot Arm Control</h1>
 
     <div class="robot-arm">
@@ -243,10 +295,15 @@
                     <span class="joint-value current-value" id="joint1-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -263,10 +320,15 @@
                     <span class="joint-value current-value" id="joint2-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -283,10 +345,15 @@
                     <span class="joint-value current-value" id="joint3-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -303,10 +370,15 @@
                     <span class="joint-value current-value" id="joint4-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -323,10 +395,15 @@
                     <span class="joint-value current-value" id="joint5-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -343,10 +420,15 @@
                     <span class="joint-value current-value" id="joint6-current-value">0°</span>
                 </div>
             </div>
-            <div class="slider-container">
-                <div class="slider-track"></div>
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current">
-                <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-target">
+            <div class="slider-group">
+                <div class="slider-container">
+                    <div class="slider-label">Target Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-target">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">Current Position</div>
+                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current" disabled>
+                </div>
             </div>
             <div class="limits">
                 <span>-180°</span>
@@ -356,11 +438,15 @@
     </div>
 
     <div class="control-panel">
+        <div class="duration-control">
+            <label for="movement-duration">Movement Duration (s):</label>
+            <input type="number" id="movement-duration" min="0.1" max="60" step="0.1" value="2.0">
+        </div>
         <button id="send-command">Send Target Positions</button>
         <button id="reset-position">Reset Target Positions</button>
-        <button id="update-current">Simulate Robot Movement</button>
-        <div id="status-message" class="status"></div>
     </div>
+
+    <div id="status-message" class="status hidden"></div>
 
     <script>
         // Initialize joint values
@@ -373,28 +459,67 @@
             joint6: 0
         };
 
-        const currentValues = {
-            joint1: 0,
-            joint2: 0,
-            joint3: 0,
-            joint4: 0,
-            joint5: 0,
-            joint6: 0
-        };
+        // Connect to WebSocket with explicit configuration
+        const socket = io('http://localhost:5001', {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: Infinity
+        });
+
+        const statusElement = document.getElementById('status-message');
+        const connectionStatus = document.getElementById('connection-status');
+
+        // Connection status handling
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+            connectionStatus.textContent = 'Connected';
+            connectionStatus.className = 'connection-status connected';
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection Error:', error);
+            connectionStatus.textContent = 'Connection Error';
+            connectionStatus.className = 'connection-status error';
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Disconnected:', reason);
+            connectionStatus.textContent = 'Disconnected';
+            connectionStatus.className = 'connection-status disconnected';
+            if (reason === 'io server disconnect') {
+                socket.connect();
+            }
+        });
+
+        // Handle position updates from server
+        socket.on('position_update', (positions) => {
+            console.log('Received position update:', positions);
+            Object.keys(positions).forEach(jointId => {
+                updateJointDisplay(jointId, positions[jointId], false);
+            });
+        });
+
+        // Handle status messages from server
+        socket.on('status_update', (data) => {
+            statusElement.textContent = data.message;
+            statusElement.className = `status ${data.type}`;
+            statusElement.style.display = 'block';
+
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        });
 
         // Update joint value displays
         function updateJointDisplay(jointId, value, isTarget = true) {
             const displayElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}-value`);
-            displayElement.textContent = `${value}°`;
+            const displayValue = isTarget ? Math.round(value) : value.toFixed(2);
+            displayElement.textContent = `${displayValue}°`;
 
-            if (isTarget) {
-                targetValues[jointId] = value;
-            } else {
-                currentValues[jointId] = value;
-                document.getElementById(`${jointId}-current`).value = value;
-            }
+            const sliderElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}`);
+            sliderElement.value = value;
         }
-
         // Set up event listeners for all target sliders
         document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
             const jointId = slider.id.replace('-target', '');
@@ -408,77 +533,41 @@
             });
         });
 
-        // Initialize current position displays
-        Object.keys(currentValues).forEach(jointId => {
-            updateJointDisplay(jointId, currentValues[jointId], false);
-        });
+        // Send target positions to server
+        document.getElementById('send-command').addEventListener('click', function () {
+            // Get current target values from sliders
+            document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
+                const jointId = slider.id.replace('-target', '');
+                targetValues[jointId] = parseInt(slider.value);
+            });
 
-        // Send command to server
-        document.getElementById('send-command').addEventListener('click', async function () {
-            const statusElement = document.getElementById('status-message');
+            // Get duration value
+            const durationInput = document.getElementById('movement-duration');
+            const duration = parseFloat(durationInput.value);
 
-            try {
-                const response = await fetch('/update_joints', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(targetValues)
-                });
-
-                const result = await response.json();
-
-                statusElement.textContent = 'Target positions sent successfully!';
-                statusElement.className = 'status success';
-                statusElement.style.display = 'block';
-
-                console.log('Success:', result);
-            } catch (error) {
-                statusElement.textContent = 'Error sending command: ' + error.message;
+            // Validate duration
+            if (isNaN(duration) || duration <= 0) {
+                statusElement.textContent = 'Please enter a valid duration (> 0)';
                 statusElement.className = 'status error';
                 statusElement.style.display = 'block';
-
-                console.error('Error:', error);
+                setTimeout(() => { statusElement.style.display = 'none'; }, 3000);
+                return;
             }
 
-            // Hide status message after 3 seconds
-            setTimeout(() => {
-                statusElement.style.display = 'none';
-            }, 3000);
+            // Send data to server
+            socket.emit('set_target_positions', {
+                positions: targetValues,
+                duration: duration
+            });
         });
 
         // Reset target positions
         document.getElementById('reset-position').addEventListener('click', function () {
             document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
-                slider.value = 0;
                 const jointId = slider.id.replace('-target', '');
                 updateJointDisplay(jointId, 0, true);
             });
         });
-
-        // Simulate robot movement (for demo purposes)
-        document.getElementById('update-current').addEventListener('click', function () {
-            // In a real application, you would get these values from the robot
-            Object.keys(targetValues).forEach(jointId => {
-                // Simulate movement by gradually approaching target
-                const current = currentValues[jointId];
-                const target = targetValues[jointId];
-                const step = Math.sign(target - current) * 5;
-
-                let newValue;
-                if (Math.abs(target - current) <= 5) {
-                    newValue = target;
-                } else {
-                    newValue = current + step;
-                }
-
-                updateJointDisplay(jointId, newValue, false);
-            });
-        });
-
-        // In a real application, you would periodically update current positions
-        // from the robot's actual position (via WebSocket or polling)
-        // setInterval(fetchCurrentPositions, 1000);
     </script>
 </body>
 
