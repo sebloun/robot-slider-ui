@@ -1,8 +1,9 @@
+import time
+import xml.etree.ElementTree as ET
+from threading import Lock, Thread
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO
-import time
-from threading import Thread, Lock
-import xml.etree.ElementTree as ET
 
 app = Flask(__name__)
 socketio = SocketIO(app, 
