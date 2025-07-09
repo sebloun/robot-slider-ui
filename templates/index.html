@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6DOF Robot Arm Control</title>
+    <style>
+        :root {
+            --joint1-color: #FF5733;
+            --joint2-color: #33FF57;
+            --joint3-color: #3357FF;
+            --joint4-color: #F033FF;
+            --joint5-color: #FF33F0;
+            --joint6-color: #33FFF0;
+            --current-pos-color: #777;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .robot-arm {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .joint-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .joint-container:hover {
+            transform: translateY(-3px);
+        }
+
+        .joint-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .joint-name {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .joint-values {
+            display: flex;
+            gap: 20px;
+        }
+
+        .joint-value {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 1.1em;
+            width: 60px;
+            text-align: center;
+        }
+
+        .target-value {
+            color: #2c3e50;
+        }
+
+        .current-value {
+            color: var(--current-pos-color);
+        }
+
+        .slider-container {
+            position: relative;
+            height: 40px;
+            margin: 15px 0;
+        }
+
+        .slider {
+            position: absolute;
+            width: 100%;
+            height: 15px;
+            border-radius: 8px;
+            background: transparent;
+            outline: none;
+            -webkit-appearance: none;
+            pointer-events: none;
+        }
+
+        /* Target slider (user controllable) */
+        #joint1-target,
+        #joint2-target,
+        #joint3-target,
+        #joint4-target,
+        #joint5-target,
+        #joint6-target {
+            pointer-events: auto;
+            z-index: 2;
+        }
+
+        /* Current position indicator (non-interactive) */
+        #joint1-current,
+        #joint2-current,
+        #joint3-current,
+        #joint4-current,
+        #joint5-current,
+        #joint6-current {
+            z-index: 1;
+        }
+
+        /* Joint-specific slider thumb colors */
+        #joint1-target::-webkit-slider-thumb {
+            background: var(--joint1-color);
+        }
+
+        #joint2-target::-webkit-slider-thumb {
+            background: var(--joint2-color);
+        }
+
+        #joint3-target::-webkit-slider-thumb {
+            background: var(--joint3-color);
+        }
+
+        #joint4-target::-webkit-slider-thumb {
+            background: var(--joint4-color);
+        }
+
+        #joint5-target::-webkit-slider-thumb {
+            background: var(--joint5-color);
+        }
+
+        #joint6-target::-webkit-slider-thumb {
+            background: var(--joint6-color);
+        }
+
+        /* Current position indicator style */
+        #joint1-current::-webkit-slider-thumb,
+        #joint2-current::-webkit-slider-thumb,
+        #joint3-current::-webkit-slider-thumb,
+        #joint4-current::-webkit-slider-thumb,
+        #joint5-current::-webkit-slider-thumb,
+        #joint6-current::-webkit-slider-thumb {
+            background: var(--current-pos-color);
+            border: 2px solid white;
+            box-shadow: 0 0 0 1px var(--current-pos-color);
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider-track {
+            position: absolute;
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 0;
+        }
+
+        .limits {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .control-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>6DOF Robot Arm Control</h1>
+
+    <div class="robot-arm">
+        <!-- Joint 1 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint1-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 1 (Base)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint1-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint1-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+
+        <!-- Joint 2 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint2-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 2 (Shoulder)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint2-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint2-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+
+        <!-- Joint 3 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint3-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 3 (Elbow)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint3-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint3-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+
+        <!-- Joint 4 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint4-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 4 (Wrist Roll)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint4-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint4-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+
+        <!-- Joint 5 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint5-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 5 (Wrist Pitch)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint5-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint5-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+
+        <!-- Joint 6 -->
+        <div class="joint-container" style="border-left: 4px solid var(--joint6-color);">
+            <div class="joint-header">
+                <span class="joint-name">Joint 6 (Wrist Yaw)</span>
+                <div class="joint-values">
+                    <span class="joint-value target-value" id="joint6-target-value">0°</span>
+                    <span class="joint-value current-value" id="joint6-current-value">0°</span>
+                </div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-track"></div>
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current">
+                <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-target">
+            </div>
+            <div class="limits">
+                <span>-180°</span>
+                <span>180°</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <button id="send-command">Send Target Positions</button>
+        <button id="reset-position">Reset Target Positions</button>
+        <button id="update-current">Simulate Robot Movement</button>
+        <div id="status-message" class="status"></div>
+    </div>
+
+    <script>
+        // Initialize joint values
+        const targetValues = {
+            joint1: 0,
+            joint2: 0,
+            joint3: 0,
+            joint4: 0,
+            joint5: 0,
+            joint6: 0
+        };
+
+        const currentValues = {
+            joint1: 0,
+            joint2: 0,
+            joint3: 0,
+            joint4: 0,
+            joint5: 0,
+            joint6: 0
+        };
+
+        // Update joint value displays
+        function updateJointDisplay(jointId, value, isTarget = true) {
+            const displayElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}-value`);
+            displayElement.textContent = `${value}°`;
+
+            if (isTarget) {
+                targetValues[jointId] = value;
+            } else {
+                currentValues[jointId] = value;
+                document.getElementById(`${jointId}-current`).value = value;
+            }
+        }
+
+        // Set up event listeners for all target sliders
+        document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
+            const jointId = slider.id.replace('-target', '');
+
+            // Initialize display
+            updateJointDisplay(jointId, slider.value, true);
+
+            // Add input event listener
+            slider.addEventListener('input', function () {
+                updateJointDisplay(jointId, this.value, true);
+            });
+        });
+
+        // Initialize current position displays
+        Object.keys(currentValues).forEach(jointId => {
+            updateJointDisplay(jointId, currentValues[jointId], false);
+        });
+
+        // Send command to server
+        document.getElementById('send-command').addEventListener('click', async function () {
+            const statusElement = document.getElementById('status-message');
+
+            try {
+                const response = await fetch('/update_joints', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(targetValues)
+                });
+
+                const result = await response.json();
+
+                statusElement.textContent = 'Target positions sent successfully!';
+                statusElement.className = 'status success';
+                statusElement.style.display = 'block';
+
+                console.log('Success:', result);
+            } catch (error) {
+                statusElement.textContent = 'Error sending command: ' + error.message;
+                statusElement.className = 'status error';
+                statusElement.style.display = 'block';
+
+                console.error('Error:', error);
+            }
+
+            // Hide status message after 3 seconds
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        });
+
+        // Reset target positions
+        document.getElementById('reset-position').addEventListener('click', function () {
+            document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
+                slider.value = 0;
+                const jointId = slider.id.replace('-target', '');
+                updateJointDisplay(jointId, 0, true);
+            });
+        });
+
+        // Simulate robot movement (for demo purposes)
+        document.getElementById('update-current').addEventListener('click', function () {
+            // In a real application, you would get these values from the robot
+            Object.keys(targetValues).forEach(jointId => {
+                // Simulate movement by gradually approaching target
+                const current = currentValues[jointId];
+                const target = targetValues[jointId];
+                const step = Math.sign(target - current) * 5;
+
+                let newValue;
+                if (Math.abs(target - current) <= 5) {
+                    newValue = target;
+                } else {
+                    newValue = current + step;
+                }
+
+                updateJointDisplay(jointId, newValue, false);
+            });
+        });
+
+        // In a real application, you would periodically update current positions
+        // from the robot's actual position (via WebSocket or polling)
+        // setInterval(fetchCurrentPositions, 1000);
+    </script>
+</body>
+
+</html>
