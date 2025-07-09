@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<robot name="6dof_robot_arm">
+  <!-- Joint 1 (Base Rotation) -->
+  <joint name="joint1" type="revolute">
+    <limit lower="-110" upper="20"/>
+    <initial_position>0</initial_position>
+  </joint>
+
+  <!-- Joint 2 (Shoulder) -->
+  <joint name="joint2" type="revolute">
+    <limit lower="-180" upper="180"/>
+    <initial_position>0</initial_position>
+  </joint>
+
+  <!-- Joint 3 (Elbow) -->
+  <joint name="joint3" type="revolute">
+    <limit lower="-180" upper="180"/>
+    <initial_position>30</initial_position>
+  </joint>
+
+  <!-- Joint 4 (Wrist Roll) -->
+  <joint name="joint4" type="revolute">
+    <limit lower="-130" upper="120"/>
+    <initial_position>40</initial_position>
+  </joint>
+
+  <!-- Joint 5 (Wrist Pitch) -->
+  <joint name="joint5" type="revolute">
+    <limit lower="-180" upper="180"/>
+    <initial_position>30</initial_position>
+  </joint>
+
+  <!-- Joint 6 (Wrist Yaw) -->
+  <joint name="joint6" type="revolute">
+    <limit lower="-20" upper="40"/>
+    <initial_position>14</initial_position>
+  </joint>
+</robot>

@@ -4,32 +4,52 @@ import time
 from threading import Thread, Lock
 import xml.etree.ElementTree as ET
 
-
 app = Flask(__name__)
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
                    async_mode='threading')
 
 class RobotState:
-    def __init__(self):
+    def __init__(self, urdf_file='robot.urdf'):
         self.lock = Lock()
-        self.positions = {
-            'joint1': 0,
-            'joint2': 0,
-            'joint3': 30,
-            'joint4': 40,
-            'joint5': 30,
-            'joint6': 20
-        }
-        self.limits = {
-            'joint1': {'min': -110, 'max': 20},
-            'joint2': {'min': -180, 'max': 180},
-            'joint3': {'min': -180, 'max': 180},
-            'joint4': {'min': -130, 'max': 120},
-            'joint5': {'min': -180, 'max': 180},
-            'joint6': {'min': -180, 'max': 180}
-        }
+        self.positions = {}
+        self.limits = {}
+        self.load_urdf(urdf_file)
+        
+        # Verify all joints were loaded
+        required_joints = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
+        for joint in required_joints:
+            if joint not in self.positions:
+                raise ValueError(f"Missing initial position for {joint} in URDF")
+            if joint not in self.limits:
+                raise ValueError(f"Missing limits for {joint} in URDF")
 
+    def load_urdf(self, urdf_file):
+        try:
+            tree = ET.parse(urdf_file)
+            root = tree.getroot()
+            
+            for joint in root.findall('joint'):
+                name = joint.get('name')
+                if name and joint.get('type') == 'revolute':
+                    # Load limits
+                    limit = joint.find('limit')
+                    if limit is not None:
+                        self.limits[name] = {
+                            'min': float(limit.get('lower')),
+                            'max': float(limit.get('upper'))
+                        }
+                    
+                    # Load initial position
+                    init_pos = joint.find('initial_position')
+                    if init_pos is not None:
+                        self.positions[name] = float(init_pos.text)
+                    else:
+                        raise ValueError(f"Missing initial_position for {name}")
+                        
+        except Exception as e:
+            print(f"Error loading URDF: {e}")
+            raise  # Re-raise exception since we require valid URDF
 
 robot_state = RobotState()
 
