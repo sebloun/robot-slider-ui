@@ -1,3 +1,4 @@
+import time
 import xml.etree.ElementTree as ET
 from threading import Lock
 
@@ -13,44 +14,97 @@ class RobotState:
             if joint not in self.positions:
                 self.positions[joint] = 0  # Default to zero position
 
-    def load_urdf(self, urdf_file:str):
+    def load_urdf(self, urdf_file):
         try:
             tree = ET.parse(urdf_file)
             root = tree.getroot()
             
             for joint in root.findall('joint'):
-                name = joint.get('name')
-                if name and joint.get('type') == 'revolute':
-                    limit = joint.find('limit')
-                    if limit is not None:
-                        self.limits[name] = {
-                            'min': float(limit.get('lower')),
-                            'max': float(limit.get('upper'))
+                joint_name = joint.get('name')
+                if not joint_name or joint.get('type') != 'revolute':
+                    continue
+
+                # Parse joint limits
+                limit = joint.find('limit')
+                if limit is not None:
+                    try:
+                        self.limits[joint_name] = {
+                            'min': float(limit.get('lower', '-180')),  # Default if missing
+                            'max': float(limit.get('upper', '180'))    # Default if missing
                         }
-                        
-                        # Check for initial position in URDF (not standard, but can be added)
-                        initial_pos = joint.find('initial_position')
-                        if initial_pos is not None:
-                            self.positions[name] = float(initial_pos.text)
-            
-            # Verify we found all expected joints
-            expected_joints = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
-            for joint in expected_joints:
-                if joint not in self.limits:
-                    raise ValueError(f"Missing joint {joint} in URDF file")
-                    
+                    except (TypeError, ValueError) as e:
+                        self.limits[joint_name] = {'min': -180.0, 'max': 180.0}  # Fallback
+
+                # Parse initial position (custom extension to URDF)
+                initial_pos = joint.find('initial_position')
+                if initial_pos is not None:
+                    try:
+                        self.positions[joint_name] = float(initial_pos.text)
+                    except (TypeError, ValueError, AttributeError) as e:
+                        self.positions[joint_name] = 0.0  # Default to zero position
+                
+                # Ensure joint exists in both dictionaries
+                if joint_name not in self.positions:
+                    self.positions[joint_name] = 0.0
+                if joint_name not in self.limits:
+                    self.limits[joint_name] = {'min': -180.0, 'max': 180.0}
+
+        except ET.ParseError as e:
+            raise ValueError(f"Invalid URDF file: {e}")
         except Exception as e:
-            print(f"Error loading URDF: {e}")
-            # Fallback to hardcoded values if URDF loading fails
-            self.positions = {
-                'joint1': 0, 'joint2': 0, 'joint3': 30,
-                'joint4': 40, 'joint5': 30, 'joint6': 20
-            }
-            self.limits = {
-                'joint1': {'min': -110, 'max': 20},
-                'joint2': {'min': -180, 'max': 180},
-                'joint3': {'min': -180, 'max': 180},
-                'joint4': {'min': -130, 'max': 120},
-                'joint5': {'min': -180, 'max': 180},
-                'joint6': {'min': -180, 'max': 180}
-            }
+            raise
+
+    @staticmethod
+    def quintic_interpolation(t, duration):
+        """Quintic interpolation function for smooth motion"""
+        t = max(0, min(t, duration))  # Clamp t between 0 and duration
+        normalized_t = t / duration
+        return 6 * normalized_t**5 - 15 * normalized_t**4 + 10 * normalized_t**3
+
+    def calculate_interpolated_positions(self, target_pos, start_pos, elapsed, duration):
+        """Calculate new positions based on interpolation"""
+        interp_factor = self.quintic_interpolation(elapsed, duration)
+        new_positions = {}
+        
+        for joint in target_pos:
+            new_positions[joint] = round(
+                start_pos[joint] + (target_pos[joint] - start_pos[joint]) * interp_factor,
+                2
+            )
+        
+        return new_positions
+
+    def execute_movement(self, target_pos, duration, callback=None):
+        """
+        Execute movement and optionally call callback with new positions
+        Args:
+            target_pos: Dictionary of target positions
+            duration: Movement duration in seconds
+            callback: Optional callback function that receives new positions
+        """
+        try:
+            start_time = time.time()
+            start_pos = self.positions.copy()
+            
+            while True:
+                elapsed = time.time() - start_time
+                progress = min(elapsed / duration, 1.0)
+                
+
+                with self.lock:
+                    new_positions = self.calculate_interpolated_positions(
+                        target_pos, start_pos, elapsed, duration
+                    )
+                    self.positions.update(new_positions)
+                    
+                    if callback:
+                        callback(new_positions)
+                
+                if progress >= 1.0:
+                    break
+                    
+                time.sleep(0.02)
+                
+        except Exception as e:
+            if callback:
+                callback(None, e)
