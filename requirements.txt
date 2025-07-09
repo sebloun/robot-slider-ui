@@ -1,4 +1,4 @@
-flask
-numpy
-flask-socketio
-types-Flask-SocketIO
+flask ~= 3.1.1
+numpy ~= 2.3.1
+flask-socketio ~= 5.5.1
+types-Flask-SocketIO ~= 5.5.0
