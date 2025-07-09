@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, copy_current_request_context
 from flask_socketio import SocketIO, emit
 import time
 from threading import Thread
@@ -43,33 +43,41 @@ def handle_set_positions(data):
     duration = float(data['duration'])
     print(f"Received target positions: {positions} with duration: {duration}s")
     
-    emit('status_update', {'message': f'Movement started (duration: {duration}s)', 'type': 'success'})
-    
+    # Use copy_current_request_context to preserve context for background thread
+    @copy_current_request_context
     def execute_movement(target_pos, duration):
         start_pos = current_positions.copy()
         start_time = time.time()
         
-        while True:
-            elapsed = time.time() - start_time
-            progress = min(elapsed / duration, 1.0)
-            interp_factor = quintic_interpolation(elapsed, duration)
+        try:
+            emit('status_update', {'message': f'Movement started (duration: {duration}s)', 'type': 'success'})
             
-            # Update each joint position with 2 decimal precision
-            for joint in target_pos:
-                current_positions[joint] = round(
-                    start_pos[joint] + (target_pos[joint] - start_pos[joint]) * interp_factor,
-                    2  # Round to 2 decimal places
-                )
-            
-            # Send update to client
-            socketio.emit('position_update', current_positions)
-            
-            if progress >= 1.0:
-                break
+            while True:
+                elapsed = time.time() - start_time
+                progress = min(elapsed / duration, 1.0)
+                interp_factor = quintic_interpolation(elapsed, duration)
                 
-            time.sleep(0.02)  # Update rate (~50Hz)
-        
-        emit('status_update', {'message': 'Movement completed', 'type': 'success'})    
+                # Update each joint position with 2 decimal precision
+                for joint in target_pos:
+                    current_positions[joint] = round(
+                        start_pos[joint] + (target_pos[joint] - start_pos[joint]) * interp_factor,
+                        2
+                    )
+                
+                # Use socketio.emit (not emit) in background thread
+                socketio.emit('position_update', current_positions)
+                
+                if progress >= 1.0:
+                    break
+                    
+                time.sleep(0.02)  # Update rate (~50Hz)
+            
+            socketio.emit('status_update', {'message': 'Movement completed', 'type': 'success'})
+        except Exception as e:
+            print(f"Error in movement thread: {e}")
+            socketio.emit('status_update', {'message': f'Movement error: {str(e)}', 'type': 'error'})
+    
+    # Start the movement thread
     Thread(target=execute_movement, args=(positions, duration)).start()
 
 if __name__ == '__main__':
