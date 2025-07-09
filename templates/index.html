@@ -305,7 +305,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint1-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -330,7 +330,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint2-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -355,7 +355,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint3-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -380,7 +380,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint4-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -405,7 +405,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint5-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -430,7 +430,7 @@
                     <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current" disabled>
                 </div>
             </div>
-            <div class="limits">
+            <div class="limits" id="joint6-limits">
                 <span>-180°</span>
                 <span>180°</span>
             </div>
@@ -449,17 +449,27 @@
     <div id="status-message" class="status hidden"></div>
 
     <script>
-        // Initialize joint values
-        const targetValues = {
-            joint1: 0,
-            joint2: 0,
-            joint3: 0,
-            joint4: 0,
-            joint5: 0,
-            joint6: 0
+        // Initialize joint state
+        const jointState = {
+            targetValues: {
+                joint1: 0,
+                joint2: 0,
+                joint3: 0,
+                joint4: 0,
+                joint5: 0,
+                joint6: 0
+            },
+            limits: {
+                joint1: { min: -180, max: 180 },
+                joint2: { min: -180, max: 180 },
+                joint3: { min: -180, max: 180 },
+                joint4: { min: -180, max: 180 },
+                joint5: { min: -180, max: 180 },
+                joint6: { min: -180, max: 180 }
+            }
         };
 
-        // Connect to WebSocket with explicit configuration
+        // Connect to WebSocket with robust configuration
         const socket = io('http://localhost:5001', {
             transports: ['websocket'],
             reconnection: true,
@@ -467,10 +477,69 @@
             reconnectionAttempts: Infinity
         });
 
+        // DOM elements
         const statusElement = document.getElementById('status-message');
         const connectionStatus = document.getElementById('connection-status');
 
-        // Connection status handling
+        // Initialize sliders with limits
+        function initializeSliders() {
+            for (const [jointId, limit] of Object.entries(jointState.limits)) {
+                const targetSlider = document.getElementById(`${jointId}-target`);
+                const currentSlider = document.getElementById(`${jointId}-current`);
+                const limitsDisplay = document.getElementById(`${jointId}-limits`);
+
+                if (targetSlider) {
+                    targetSlider.min = limit.min;
+                    targetSlider.max = limit.max;
+                    targetSlider.value = jointState.targetValues[jointId];
+                }
+
+                if (currentSlider) {
+                    currentSlider.min = limit.min;
+                    currentSlider.max = limit.max;
+                }
+                if (limitsDisplay) {
+                    limitsDisplay.innerHTML = `<span>${limit.min}°</span><span>${limit.max}°</span>`;
+                }
+
+            }
+        }
+
+        // Update joint display
+        function updateJointDisplay(jointId, value, isTarget = true) {
+            const displayElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}-value`);
+            const sliderElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}`);
+
+            if (displayElement) {
+                const displayValue = isTarget ? Math.round(value) : value.toFixed(2);
+                displayElement.textContent = `${displayValue}°`;
+            }
+
+            if (sliderElement) {
+                sliderElement.value = value;
+            }
+
+            if (isTarget) {
+                jointState.targetValues[jointId] = value;
+            }
+        }
+
+        // Initialize with fallback values
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeSliders();
+
+            // Set up event listeners for all target sliders
+            document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
+                const jointId = slider.id.replace('-target', '');
+                updateJointDisplay(jointId, slider.value, true);
+
+                slider.addEventListener('input', function () {
+                    updateJointDisplay(jointId, this.value, true);
+                });
+            });
+        });
+
+        // Socket event handlers
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             connectionStatus.textContent = 'Connected';
@@ -492,60 +561,40 @@
             }
         });
 
-        // Handle position updates from server
+
+        socket.on('init_state', (data) => {
+            // Update limits if provided by server
+            if (data.limits) {
+                Object.assign(jointState.limits, data.limits);
+                initializeSliders();
+            }
+
+            // Update current positions if provided
+            if (data.positions) {
+                Object.entries(data.positions).forEach(([jointId, value]) => {
+                    updateJointDisplay(jointId, value, false);
+                });
+            }
+        });
+
         socket.on('position_update', (positions) => {
-            console.log('Received position update:', positions);
-            Object.keys(positions).forEach(jointId => {
-                updateJointDisplay(jointId, positions[jointId], false);
+            Object.entries(positions).forEach(([jointId, value]) => {
+                updateJointDisplay(jointId, value, false);
             });
         });
 
-        // Handle status messages from server
         socket.on('status_update', (data) => {
             statusElement.textContent = data.message;
             statusElement.className = `status ${data.type}`;
             statusElement.style.display = 'block';
-
-            setTimeout(() => {
-                statusElement.style.display = 'none';
-            }, 3000);
+            setTimeout(() => { statusElement.style.display = 'none'; }, 3000);
         });
 
-        // Update joint value displays
-        function updateJointDisplay(jointId, value, isTarget = true) {
-            const displayElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}-value`);
-            const displayValue = isTarget ? Math.round(value) : value.toFixed(2);
-            displayElement.textContent = `${displayValue}°`;
-
-            const sliderElement = document.getElementById(`${jointId}-${isTarget ? 'target' : 'current'}`);
-            sliderElement.value = value;
-        }
-        // Set up event listeners for all target sliders
-        document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
-            const jointId = slider.id.replace('-target', '');
-
-            // Initialize display
-            updateJointDisplay(jointId, slider.value, true);
-
-            // Add input event listener
-            slider.addEventListener('input', function () {
-                updateJointDisplay(jointId, this.value, true);
-            });
-        });
-
-        // Send target positions to server
-        document.getElementById('send-command').addEventListener('click', function () {
-            // Get current target values from sliders
-            document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
-                const jointId = slider.id.replace('-target', '');
-                targetValues[jointId] = parseInt(slider.value);
-            });
-
-            // Get duration value
+        // Button event handlers
+        document.getElementById('send-command').addEventListener('click', () => {
             const durationInput = document.getElementById('movement-duration');
             const duration = parseFloat(durationInput.value);
 
-            // Validate duration
             if (isNaN(duration) || duration <= 0) {
                 statusElement.textContent = 'Please enter a valid duration (> 0)';
                 statusElement.className = 'status error';
@@ -554,17 +603,14 @@
                 return;
             }
 
-            // Send data to server
             socket.emit('set_target_positions', {
-                positions: targetValues,
+                positions: jointState.targetValues,
                 duration: duration
             });
         });
 
-        // Reset target positions
-        document.getElementById('reset-position').addEventListener('click', function () {
-            document.querySelectorAll('.slider[id$="-target"]').forEach(slider => {
-                const jointId = slider.id.replace('-target', '');
+        document.getElementById('reset-position').addEventListener('click', () => {
+            Object.keys(jointState.targetValues).forEach(jointId => {
                 updateJointDisplay(jointId, 0, true);
             });
         });

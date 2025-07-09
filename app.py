@@ -1,21 +1,38 @@
-from flask import Flask, render_template, copy_current_request_context
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template
+from flask_socketio import SocketIO
 import time
-from threading import Thread
+from threading import Thread, Lock
+import xml.etree.ElementTree as ET
+
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key_here'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, 
+                   cors_allowed_origins="*",
+                   async_mode='threading')
 
-# Simulated robot state
-current_positions = {
-    'joint1': 0,
-    'joint2': 0,
-    'joint3': 0,
-    'joint4': 0,
-    'joint5': 0,
-    'joint6': 0
-}
+class RobotState:
+    def __init__(self):
+        self.lock = Lock()
+        self.positions = {
+            'joint1': 0,
+            'joint2': 0,
+            'joint3': 30,
+            'joint4': 40,
+            'joint5': 30,
+            'joint6': 20
+        }
+        self.limits = {
+            'joint1': {'min': -110, 'max': 20},
+            'joint2': {'min': -180, 'max': 180},
+            'joint3': {'min': -180, 'max': 180},
+            'joint4': {'min': -130, 'max': 120},
+            'joint5': {'min': -180, 'max': 180},
+            'joint6': {'min': -180, 'max': 180}
+        }
+
+
+robot_state = RobotState()
+
 
 def quintic_interpolation(t, duration):
     """Calculate interpolation factor (0 to 1) using quintic polynomial"""
@@ -30,55 +47,65 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
-    emit('position_update', current_positions)
+    with robot_state.lock:
+        # Send initial state
+        socketio.emit('init_state', {
+            'positions': robot_state.positions,
+            'limits': robot_state.limits
+        })
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print('Client disconnected')
 
-@socketio.on('set_target_positions')
-def handle_set_positions(data):
-    positions = data['positions']
-    duration = float(data['duration'])
-    print(f"Received target positions: {positions} with duration: {duration}s")
-    
-    # Use copy_current_request_context to preserve context for background thread
-    @copy_current_request_context
-    def execute_movement(target_pos, duration):
-        start_pos = current_positions.copy()
+def execute_movement(target_pos, duration):
+    try:
         start_time = time.time()
+        start_pos = robot_state.positions.copy()
         
-        try:
-            emit('status_update', {'message': f'Movement started (duration: {duration}s)', 'type': 'success'})
+        while True:
+            elapsed = time.time() - start_time
+            progress = min(elapsed / duration, 1.0)
             
-            while True:
-                elapsed = time.time() - start_time
-                progress = min(elapsed / duration, 1.0)
-                interp_factor = quintic_interpolation(elapsed, duration)
-                
-                # Update each joint position with 2 decimal precision
+            # Calculate new positions
+            with robot_state.lock:
                 for joint in target_pos:
-                    current_positions[joint] = round(
-                        start_pos[joint] + (target_pos[joint] - start_pos[joint]) * interp_factor,
+                    robot_state.positions[joint] = round(
+                        start_pos[joint] + (target_pos[joint] - start_pos[joint]) * progress,
                         2
                     )
                 
-                # Use socketio.emit (not emit) in background thread
-                socketio.emit('position_update', current_positions)
-                
-                if progress >= 1.0:
-                    break
-                    
-                time.sleep(0.02)  # Update rate (~50Hz)
+                # Emit update
+                socketio.emit('position_update', robot_state.positions)
             
-            socketio.emit('status_update', {'message': 'Movement completed', 'type': 'success'})
-        except Exception as e:
-            print(f"Error in movement thread: {e}")
-            socketio.emit('status_update', {'message': f'Movement error: {str(e)}', 'type': 'error'})
-    
-    # Start the movement thread
-    Thread(target=execute_movement, args=(positions, duration)).start()
+            if progress >= 1.0:
+                break
+                
+            time.sleep(0.02)
+            
+    except Exception as e:
+        socketio.emit('error', {'message': str(e)})
+
+@socketio.on('set_target_positions')
+def handle_set_positions(data):
+    try:
+        duration = float(data.get('duration', 2.0))
+        target_pos = data['positions']
+        
+        # Validate positions against limits
+        with robot_state.lock:
+            for joint, pos in target_pos.items():
+                limits = robot_state.limits.get(joint, {})
+                target_pos[joint] = max(limits.get('min', -180), 
+                                      min(limits.get('max', 180), 
+                                      float(pos)))
+        
+        # Start movement in background thread
+        Thread(target=execute_movement, args=(target_pos, duration)).start()
+        
+    except Exception as e:
+        socketio.emit('error', {'message': str(e)})
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001, debug=True)
