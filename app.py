@@ -1,66 +1,18 @@
 import time
-import xml.etree.ElementTree as ET
-from threading import Lock, Thread
+from threading import Thread
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO
+
+from robot.robot_state import RobotState
 
 app = Flask(__name__)
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
                    async_mode='threading')
 
-class RobotState:
-    def __init__(self, urdf_file='robot.urdf'):
-        self.lock = Lock()
-        self.positions = {}
-        self.limits = {}
-        self.load_urdf(urdf_file)
-        
-        # Verify all joints were loaded
-        required_joints = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
-        for joint in required_joints:
-            if joint not in self.positions:
-                raise ValueError(f"Missing initial position for {joint} in URDF")
-            if joint not in self.limits:
-                raise ValueError(f"Missing limits for {joint} in URDF")
 
-    def load_urdf(self, urdf_file):
-        try:
-            tree = ET.parse(urdf_file)
-            root = tree.getroot()
-            
-            for joint in root.findall('joint'):
-                name = joint.get('name')
-                if name and joint.get('type') == 'revolute':
-                    # Load limits
-                    limit = joint.find('limit')
-                    if limit is not None:
-                        self.limits[name] = {
-                            'min': float(limit.get('lower')),
-                            'max': float(limit.get('upper'))
-                        }
-                    
-                    # Load initial position
-                    init_pos = joint.find('initial_position')
-                    if init_pos is not None:
-                        self.positions[name] = float(init_pos.text)
-                    else:
-                        raise ValueError(f"Missing initial_position for {name}")
-                        
-        except Exception as e:
-            print(f"Error loading URDF: {e}")
-            raise  # Re-raise exception since we require valid URDF
-
-robot_state = RobotState()
-
-
-def quintic_interpolation(t, duration):
-    """Calculate interpolation factor (0 to 1) using quintic polynomial"""
-    normalized_time = t / duration
-    if normalized_time >= 1:
-        return 1.0
-    return 10 * normalized_time**3 - 15 * normalized_time**4 + 6 * normalized_time**5
+robot_state = RobotState(urdf_file="robot/robot.urdf")
 
 @app.route('/')
 def index():
@@ -79,6 +31,13 @@ def handle_connect():
 def handle_disconnect():
     print('Client disconnected')
 
+def quintic_interpolation(t, duration):
+    """Calculate interpolation factor (0 to 1) using quintic polynomial"""
+    normalized_time = t / duration
+    if normalized_time >= 1:
+        return 1.0
+    return 10 * normalized_time**3 - 15 * normalized_time**4 + 6 * normalized_time**5
+
 def execute_movement(target_pos, duration):
     try:
         start_time = time.time()
@@ -87,16 +46,15 @@ def execute_movement(target_pos, duration):
         while True:
             elapsed = time.time() - start_time
             progress = min(elapsed / duration, 1.0)
-            
-            # Calculate new positions
+            interp_factor = quintic_interpolation(elapsed, duration)
+
             with robot_state.lock:
                 for joint in target_pos:
                     robot_state.positions[joint] = round(
-                        start_pos[joint] + (target_pos[joint] - start_pos[joint]) * progress,
+                        start_pos[joint] + (target_pos[joint] - start_pos[joint]) * interp_factor,
                         2
                     )
                 
-                # Emit update
                 socketio.emit('position_update', robot_state.positions)
             
             if progress >= 1.0:
