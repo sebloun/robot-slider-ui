@@ -4,6 +4,9 @@
             "source.organizeImports": "always"
         },
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        "editor.defaultFormatter": "ms-python.black-formatter",
     },
+    "mypy-type-checker.args": [
+        "--strict"
+    ]
 }

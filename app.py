@@ -1,4 +1,5 @@
 from threading import Thread
+from typing import Any
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO
@@ -13,12 +14,12 @@ robot_state = RobotState(urdf_file="robot/robot.urdf")
 
 
 @app.route("/")
-def index():
+def index() -> str:
     return render_template("index.html")
 
 
 @socketio.on("connect")
-def handle_connect():
+def handle_connect() -> None:
     with robot_state.lock:
         # Send initial state
         socketio.emit(
@@ -28,12 +29,14 @@ def handle_connect():
 
 
 @socketio.on("disconnect")
-def handle_disconnect():
+def handle_disconnect() -> None:
     print("Client disconnected")
 
 
-def execute_movement(target_pos, duration):
-    def position_callback(new_positions, error=None):
+def execute_movement(target_pos: dict[str, float], duration: float) -> None:
+    def position_callback(
+        new_positions: dict[str, float] | None, error: str | None
+    ) -> None:
         if error:
             socketio.emit("error", {"message": str(error)})
         else:
@@ -43,7 +46,7 @@ def execute_movement(target_pos, duration):
 
 
 @socketio.on("set_target_positions")
-def handle_set_positions(data):
+def handle_set_positions(data: dict[str, Any]) -> None:
     try:
         duration = float(data.get("duration", 2.0))
         target_pos = data["positions"]
