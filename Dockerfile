@@ -10,15 +10,16 @@ RUN apk add --no-cache --virtual .build-deps \
     musl-dev \
     && pip install --no-cache-dir --upgrade pip
 
-# Copy requirements first for caching
-COPY requirements.txt .
-
 # Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
 # Copy application code
-COPY robot .
+COPY robot robot/
+COPY static static/
+COPY templates templates/
+COPY app.py .
 
 # Run the application (production)
 CMD ["python", "app.py"]
