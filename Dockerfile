@@ -18,10 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
 # Copy application code
-COPY . .
-
-# Expose the application port
-EXPOSE 5001
+COPY robot .
 
 # Run the application (production)
 CMD ["python", "app.py"]
