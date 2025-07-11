@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>6DOF Robot Arm Control</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
@@ -13,172 +14,182 @@
     <div id="connection-status" class="connection-status disconnected">Disconnected</div>
 
     <h1>6DOF Robot Arm Control</h1>
+    <div class="main-container">
+        <div class="controls-container">
+            <div class="robot-arm">
+                <!-- Joint 1 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint1-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 1 (Base)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint1-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint1-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint1-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
+                </div>
 
-    <div class="robot-arm">
-        <!-- Joint 1 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint1-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 1 (Base)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint1-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint1-current-value">0°</span>
+                <!-- Joint 2 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint2-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 2 (Shoulder)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint2-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint2-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint2-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
+                </div>
+
+                <!-- Joint 3 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint3-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 3 (Elbow)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint3-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint3-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint3-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
+                </div>
+
+                <!-- Joint 4 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint4-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 4 (Wrist Roll)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint4-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint4-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint4-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
+                </div>
+
+                <!-- Joint 5 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint5-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 5 (Wrist Pitch)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint5-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint5-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint5-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
+                </div>
+
+                <!-- Joint 6 -->
+                <div class="joint-container" style="border-left: 4px solid var(--joint6-color);">
+                    <div class="joint-header">
+                        <span class="joint-name">Joint 6 (Wrist Yaw)</span>
+                        <div class="joint-values">
+                            <span class="joint-value target-value" id="joint6-target-value">0°</span>
+                            <span class="joint-value current-value" id="joint6-current-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-container">
+                            <div class="slider-label">Target Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-target">
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">Current Position</div>
+                            <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current"
+                                disabled>
+                        </div>
+                    </div>
+                    <div class="limits" id="joint6-limits">
+                        <span>-180°</span>
+                        <span>180°</span>
+                    </div>
                 </div>
             </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-target">
+
+            <div class="control-panel">
+                <div class="duration-control">
+                    <label for="movement-duration">Movement Duration (s):</label>
+                    <input type="number" id="movement-duration" min="0.1" max="60" step="0.1" value="2.0">
                 </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint1-current" disabled>
-                </div>
+                <button id="send-command">Send Target Positions</button>
+                <button id="reset-position">Reset Target Positions</button>
             </div>
-            <div class="limits" id="joint1-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
+
+            <div id="status-message" class="status hidden"></div>
+
+            <script src="{{ url_for('static', filename='script.js') }}"></script>
         </div>
-
-        <!-- Joint 2 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint2-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 2 (Shoulder)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint2-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint2-current-value">0°</span>
-                </div>
-            </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-target">
-                </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint2-current" disabled>
-                </div>
-            </div>
-            <div class="limits" id="joint2-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
-        </div>
-
-        <!-- Joint 3 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint3-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 3 (Elbow)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint3-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint3-current-value">0°</span>
-                </div>
-            </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-target">
-                </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint3-current" disabled>
-                </div>
-            </div>
-            <div class="limits" id="joint3-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
-        </div>
-
-        <!-- Joint 4 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint4-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 4 (Wrist Roll)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint4-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint4-current-value">0°</span>
-                </div>
-            </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-target">
-                </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint4-current" disabled>
-                </div>
-            </div>
-            <div class="limits" id="joint4-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
-        </div>
-
-        <!-- Joint 5 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint5-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 5 (Wrist Pitch)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint5-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint5-current-value">0°</span>
-                </div>
-            </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-target">
-                </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint5-current" disabled>
-                </div>
-            </div>
-            <div class="limits" id="joint5-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
-        </div>
-
-        <!-- Joint 6 -->
-        <div class="joint-container" style="border-left: 4px solid var(--joint6-color);">
-            <div class="joint-header">
-                <span class="joint-name">Joint 6 (Wrist Yaw)</span>
-                <div class="joint-values">
-                    <span class="joint-value target-value" id="joint6-target-value">0°</span>
-                    <span class="joint-value current-value" id="joint6-current-value">0°</span>
-                </div>
-            </div>
-            <div class="slider-group">
-                <div class="slider-container">
-                    <div class="slider-label">Target Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-target">
-                </div>
-                <div class="slider-container">
-                    <div class="slider-label">Current Position</div>
-                    <input type="range" min="-180" max="180" value="0" class="slider" id="joint6-current" disabled>
-                </div>
-            </div>
-            <div class="limits" id="joint6-limits">
-                <span>-180°</span>
-                <span>180°</span>
-            </div>
+        <div id="robot-display">
         </div>
     </div>
-
-    <div class="control-panel">
-        <div class="duration-control">
-            <label for="movement-duration">Movement Duration (s):</label>
-            <input type="number" id="movement-duration" min="0.1" max="60" step="0.1" value="2.0">
-        </div>
-        <button id="send-command">Send Target Positions</button>
-        <button id="reset-position">Reset Target Positions</button>
-    </div>
-
-    <div id="status-message" class="status hidden"></div>
-
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-
 </body>
 
 </html>
